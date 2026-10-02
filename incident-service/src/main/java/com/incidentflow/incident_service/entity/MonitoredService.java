@@ -1,4 +1,4 @@
-package com.incidentflow.incident_service.monitoredservice;
+package com.incidentflow.incident_service.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
