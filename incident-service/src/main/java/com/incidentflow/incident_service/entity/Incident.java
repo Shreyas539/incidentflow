@@ -46,4 +46,13 @@ public class Incident {
     @PreUpdate
     void onUpdate() { updatedAt = Instant.now(); }
 
+    @Version
+    private Long version;
+
+    @Column(name = "acknowledged_at")
+    private Instant acknowledgedAt;
+
+    @Column(name = "resolved_at")
+    private Instant resolvedAt;
+
 }
