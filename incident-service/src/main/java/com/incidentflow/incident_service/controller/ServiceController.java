@@ -27,4 +27,9 @@ public class ServiceController {
     public List<ServiceResponse> list() {
         return service.list();
     }
+
+    @GetMapping("/{id}")
+    public ServiceResponse getById(@PathVariable Long id) {
+        return service.getById(id);
+    }
 }
