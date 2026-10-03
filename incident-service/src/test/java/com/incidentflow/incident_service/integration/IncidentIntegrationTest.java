@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -56,10 +57,17 @@ class IncidentIntegrationTest {
     }
 
     @Test
-    void flywayAppliesAllMigrationsToEmptyDatabase() {
+    void flywayAppliesAllMigrationsToEmptyDatabase() throws Exception {
+        int migrationFiles = new PathMatchingResourcePatternResolver()
+                .getResources("classpath:db/migration/V*.sql").length;
+
         Integer applied = jdbc.queryForObject(
                 "select count(*) from flyway_schema_history where success", Integer.class);
-        assertThat(applied).isEqualTo(3);
+        Integer failed = jdbc.queryForObject(
+                "select count(*) from flyway_schema_history where not success", Integer.class);
+
+        assertThat(applied).isEqualTo(migrationFiles);
+        assertThat(failed).isZero();
     }
 
     @Test
