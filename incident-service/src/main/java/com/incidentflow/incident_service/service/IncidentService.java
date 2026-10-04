@@ -4,10 +4,8 @@ import com.incidentflow.incident_service.dto.AuditLogResponse;
 import com.incidentflow.incident_service.dto.ChangeStatusRequest;
 import com.incidentflow.incident_service.dto.CreateIncidentRequest;
 import com.incidentflow.incident_service.dto.IncidentResponse;
-import com.incidentflow.incident_service.entity.Incident;
-import com.incidentflow.incident_service.entity.IncidentAuditLog;
-import com.incidentflow.incident_service.entity.IncidentStatus;
-import com.incidentflow.incident_service.entity.MonitoredService;
+import com.incidentflow.incident_service.entity.*;
+import com.incidentflow.incident_service.event.EventType;
 import com.incidentflow.incident_service.exception.ConflictException;
 import com.incidentflow.incident_service.exception.InvalidStateTransitionException;
 import com.incidentflow.incident_service.exception.ResourceNotFoundException;
@@ -35,6 +33,7 @@ public class IncidentService {
     private final IncidentRepository incidentRepository;
     private final MonitoredServiceRepository serviceRepository;
     private final IncidentAuditLogRepository auditLogRepository;
+    private final OutboxService outboxService;
 
     @Transactional
     public IncidentResponse create(CreateIncidentRequest request){
@@ -49,6 +48,7 @@ public class IncidentService {
 
         Incident saved = incidentRepository.save(incident);
         recordAudit(saved, null, IncidentStatus.OPEN, "Incident created");
+        outboxService.record(IncidentEvent.of(EventType.INCIDENT_CREATED, saved, null));
         return IncidentResponse.from(saved);
     }
 
@@ -91,6 +91,7 @@ public class IncidentService {
 
         Incident saved = incidentRepository.saveAndFlush(incident);
         recordAudit(saved, from, to, request.note());
+        outboxService.record(IncidentEvent.of(EventType.INCIDENT_STATUS_CHANGED, saved, from));
         return IncidentResponse.from(saved);
     }
 

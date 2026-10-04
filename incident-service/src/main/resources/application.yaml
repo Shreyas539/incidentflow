@@ -18,6 +18,14 @@ spring:
     redis:
       host: localhost
       port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      acks: all
+      properties:
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
   web:
     error:
       include-stacktrace: never
@@ -31,4 +39,9 @@ app:
     password: ${BOOTSTRAP_ADMIN_PASSWORD:}
   cache:
     enabled: true
+
+  outbox:
+    topic: incident-events
+    batch-size: 50
+    poll-interval-ms: 1000
 

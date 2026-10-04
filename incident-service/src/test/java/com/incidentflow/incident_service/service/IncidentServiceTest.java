@@ -4,6 +4,7 @@ import com.incidentflow.incident_service.dto.ChangeStatusRequest;
 import com.incidentflow.incident_service.dto.CreateIncidentRequest;
 import com.incidentflow.incident_service.dto.IncidentResponse;
 import com.incidentflow.incident_service.entity.*;
+import com.incidentflow.incident_service.event.EventType;
 import com.incidentflow.incident_service.exception.ConflictException;
 import com.incidentflow.incident_service.exception.InvalidStateTransitionException;
 import com.incidentflow.incident_service.exception.ResourceNotFoundException;
@@ -20,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -36,6 +38,8 @@ class IncidentServiceTest {
     MonitoredServiceRepository serviceRepository;
     @Mock
     IncidentAuditLogRepository auditLogRepository;
+    @Mock
+    OutboxService outboxService;
 
     @InjectMocks
     IncidentService incidentService;
@@ -69,6 +73,7 @@ class IncidentServiceTest {
         assertThat(response.status()).isEqualTo(IncidentStatus.OPEN);
         ArgumentCaptor<IncidentAuditLog> captor = ArgumentCaptor.forClass(IncidentAuditLog.class);
         verify(auditLogRepository).save(captor.capture());
+        verify(outboxService).record(argThat(e -> e.eventType() == EventType.INCIDENT_CREATED));
         assertThat(captor.getValue().getFromStatus()).isNull();
         assertThat(captor.getValue().getToStatus()).isEqualTo(IncidentStatus.OPEN);
     }
@@ -99,6 +104,10 @@ class IncidentServiceTest {
 
         ArgumentCaptor<IncidentAuditLog> captor = ArgumentCaptor.forClass(IncidentAuditLog.class);
         verify(auditLogRepository).save(captor.capture());
+        verify(outboxService).record(argThat(e ->
+                e.eventType() == EventType.INCIDENT_STATUS_CHANGED
+                        && e.fromStatus() == IncidentStatus.OPEN
+                        && e.status() == IncidentStatus.ACKNOWLEDGED));
         assertThat(captor.getValue().getFromStatus()).isEqualTo(IncidentStatus.OPEN);
         assertThat(captor.getValue().getToStatus()).isEqualTo(IncidentStatus.ACKNOWLEDGED);
         assertThat(captor.getValue().getNote()).isEqualTo("On it");
