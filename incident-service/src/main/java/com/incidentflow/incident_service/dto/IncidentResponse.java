@@ -4,12 +4,15 @@ import com.incidentflow.incident_service.entity.Incident;
 import com.incidentflow.incident_service.entity.IncidentStatus;
 import com.incidentflow.incident_service.entity.Severity;
 
+import java.io.Serializable;
 import java.time.Instant;
 
 public record IncidentResponse(
         Long id, String title, String description, Severity severity, IncidentStatus status,
         Long serviceId, String serviceName, Long version,
-        Instant createdAt, Instant updatedAt, Instant acknowledgedAt, Instant resolvedAt) {
+        Instant createdAt, Instant updatedAt, Instant acknowledgedAt, Instant resolvedAt)
+
+implements Serializable{
 
     public static IncidentResponse from(Incident i) {
         return new IncidentResponse(

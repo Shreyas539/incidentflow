@@ -17,6 +17,8 @@ import com.incidentflow.incident_service.repository.IncidentSpecs;
 import com.incidentflow.incident_service.repository.MonitoredServiceRepository;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -51,6 +53,7 @@ public class IncidentService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "incidents" ,key = "#id")
     public IncidentResponse getById(Long id) {
         return incidentRepository.findById(id)
                 .map(IncidentResponse::from)
@@ -65,6 +68,7 @@ public class IncidentService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "incidents",key = "#id")
     public IncidentResponse changeStatus(Long id, ChangeStatusRequest request) {
         Incident incident = incidentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Incident " + id + " not found"));
