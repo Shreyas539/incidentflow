@@ -1,0 +1,32 @@
+
+server:
+  port: 8081
+
+spring:
+  application:
+    name: notification-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/notifications
+    username: incidentflow
+    password: incidentflow
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: notification-service
+      auto-offset-reset: earliest
+    listener:
+      concurrency: 3
+  web:
+    error:
+      include-stacktrace: never
+
+app:
+  topic: incident-events
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-0123456789}

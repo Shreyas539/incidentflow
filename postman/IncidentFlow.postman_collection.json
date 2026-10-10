@@ -1,0 +1,2423 @@
+{
+  "info": {
+    "name": "IncidentFlow",
+    "description": "End-to-end tests for incident-service (8080) and notification-service (8081).\n\n**Before running**\n1. `docker compose up -d` (Postgres, Redis, Kafka)\n2. Start incident-service with `BOOTSTRAP_ADMIN_PASSWORD='ChangeMe123!'` (same value as the `adminPassword` collection variable)\n3. Start notification-service\n\n**Run the whole collection in order** (Collection Runner, keep the order). Each folder depends on the variables the previous one stored. Every run uses fresh usernames and service names, so it can be repeated.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Auth and users",
+      "item": [
+        {
+          "name": "Login as bootstrap admin",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"runId\", Date.now().toString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Returns a bearer token\", () => {",
+                  "  pm.expect(json.token).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(json.tokenType).to.eql(\"Bearer\");",
+                  "  pm.expect(json.expiresInSeconds).to.be.above(0);",
+                  "});",
+                  "pm.collectionVariables.set(\"adminToken\", json.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "raw": "{{baseUrl}}/api/auth/login"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{adminUsername}}\",\"password\":\"{{adminPassword}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Needs the bootstrap admin: start incident-service with BOOTSTRAP_ADMIN_PASSWORD set and make adminPassword match."
+          }
+        },
+        {
+          "name": "Register viewer",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"viewerUsername\", \"viewer\" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"New users are VIEWERs\", () => pm.expect(json.role).to.eql(\"VIEWER\"));",
+                  "pm.test(\"Response never contains a password\", () => pm.expect(JSON.stringify(json)).to.not.include(\"password\"));",
+                  "pm.collectionVariables.set(\"viewerId\", json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ],
+              "raw": "{{baseUrl}}/api/auth/register"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{viewerUsername}}\",\"password\":\"Password123\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register responder candidate",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"responderUsername\", \"responder\" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Starts as VIEWER\", () => pm.expect(json.role).to.eql(\"VIEWER\"));",
+                  "pm.collectionVariables.set(\"responderId\", json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ],
+              "raw": "{{baseUrl}}/api/auth/register"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{responderUsername}}\",\"password\":\"Password123\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login as viewer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set(\"viewerToken\", json.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "raw": "{{baseUrl}}/api/auth/login"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{viewerUsername}}\",\"password\":\"Password123\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Admin promotes candidate to RESPONDER",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Role is now RESPONDER\", () => pm.expect(pm.response.json().role).to.eql(\"RESPONDER\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{responderId}}",
+                "role"
+              ],
+              "raw": "{{baseUrl}}/api/users/{{responderId}}/role"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"role\":\"RESPONDER\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login as responder (token carries new role)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "let b64 = json.token.split(\".\")[1].replace(/-/g, \"+\").replace(/_/g, \"/\");",
+                  "while (b64.length % 4) { b64 += \"=\"; }",
+                  "const payload = JSON.parse(atob(b64));",
+                  "pm.test(\"JWT roles claim contains RESPONDER\", () => pm.expect(payload.roles).to.include(\"RESPONDER\"));",
+                  "pm.test(\"JWT issuer is incidentflow\", () => pm.expect(payload.iss).to.eql(\"incidentflow\"));",
+                  "pm.test(\"JWT expires in the future\", () => pm.expect(payload.exp).to.be.above(Math.floor(Date.now() / 1000)));",
+                  "pm.collectionVariables.set(\"responderToken\", json.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "raw": "{{baseUrl}}/api/auth/login"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{responderUsername}}\",\"password\":\"Password123\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Registration ignores a requested ADMIN role",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"escalationUsername\", \"escalate\" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Role escalation attempt is ignored\", () => pm.expect(pm.response.json().role).to.eql(\"VIEWER\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ],
+              "raw": "{{baseUrl}}/api/auth/register"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{escalationUsername}}\",\"password\":\"Password123\",\"role\":\"ADMIN\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register duplicate username -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", () => pm.response.to.have.status(409));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));pm.test(\"Detail mentions \\\"already taken\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"already taken\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ],
+              "raw": "{{baseUrl}}/api/auth/register"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{viewerUsername}}\",\"password\":\"Password123\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Register invalid payload -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Both field errors are reported\", () => {",
+                  "  pm.expect(json.errors).to.have.property(\"username\");",
+                  "  pm.expect(json.errors).to.have.property(\"password\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ],
+              "raw": "{{baseUrl}}/api/auth/register"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"ab\",\"password\":\"short\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login with wrong password -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", () => pm.response.to.have.status(401));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));pm.test(\"Detail mentions \\\"Invalid username or password\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"Invalid username or password\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "raw": "{{baseUrl}}/api/auth/login"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{viewerUsername}}\",\"password\":\"definitely-wrong\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Protected endpoint without token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", () => pm.response.to.have.status(401));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "services"
+              ],
+              "raw": "{{baseUrl}}/api/services"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Protected endpoint with garbage token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", () => pm.response.to.have.status(401));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "services"
+              ],
+              "raw": "{{baseUrl}}/api/services"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "abc.def.ghi",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Viewer cannot list users -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ],
+              "raw": "{{baseUrl}}/api/users"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin lists users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const names = pm.response.json().map(u => u.username);",
+                  "pm.test(\"Contains the users created in this run\", () => {",
+                  "  pm.expect(names).to.include(pm.collectionVariables.get(\"viewerUsername\"));",
+                  "  pm.expect(names).to.include(pm.collectionVariables.get(\"responderUsername\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ],
+              "raw": "{{baseUrl}}/api/users"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin sends an unknown role -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{responderId}}",
+                "role"
+              ],
+              "raw": "{{baseUrl}}/api/users/{{responderId}}/role"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"role\":\"SUPERUSER\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Services (roles and validation)",
+      "item": [
+        {
+          "name": "Admin creates a service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Has an id and creation time\", () => {",
+                  "  pm.expect(json.id).to.be.a(\"number\");",
+                  "  pm.expect(json.createdAt).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"serviceId\", json.id);pm.collectionVariables.set(\"serviceName\", json.name);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "services"
+              ],
+              "raw": "{{baseUrl}}/api/services"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"payments-{{runId}}\",\"description\":\"Payment processing\",\"ownerTeam\":\"Payments\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Responder cannot create a service -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "services"
+              ],
+              "raw": "{{baseUrl}}/api/services"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{responderToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"nope-{{runId}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Viewer cannot create a service -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "services"
+              ],
+              "raw": "{{baseUrl}}/api/services"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"nope-{{runId}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Duplicate service name -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", () => pm.response.to.have.status(409));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));pm.test(\"Detail mentions \\\"already exists\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"already exists\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "services"
+              ],
+              "raw": "{{baseUrl}}/api/services"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"payments-{{runId}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Blank service name -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));",
+                  "pm.test(\"Field error is reported for name\", () => pm.expect(pm.response.json().errors).to.have.property(\"name\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "services"
+              ],
+              "raw": "{{baseUrl}}/api/services"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Viewer lists services",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json().map(s => s.id);",
+                  "pm.test(\"Includes the service created in this run\", () => pm.expect(ids).to.include(Number(pm.collectionVariables.get(\"serviceId\"))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "services"
+              ],
+              "raw": "{{baseUrl}}/api/services"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get service by id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Name matches\", () => pm.expect(pm.response.json().name).to.eql(pm.collectionVariables.get(\"serviceName\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "services",
+                "{{serviceId}}"
+              ],
+              "raw": "{{baseUrl}}/api/services/{{serviceId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get unknown service -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", () => pm.response.to.have.status(404));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "services",
+                "999999999"
+              ],
+              "raw": "{{baseUrl}}/api/services/999999999"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Incidents (create, read, list, cache)",
+      "item": [
+        {
+          "name": "Responder creates an incident",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"New incident is OPEN at version 0\", () => {",
+                  "  pm.expect(json.status).to.eql(\"OPEN\");",
+                  "  pm.expect(json.version).to.eql(0);",
+                  "});",
+                  "pm.test(\"Linked to the service\", () => {",
+                  "  pm.expect(json.serviceId).to.eql(Number(pm.collectionVariables.get(\"serviceId\")));",
+                  "  pm.expect(json.serviceName).to.eql(pm.collectionVariables.get(\"serviceName\"));",
+                  "});",
+                  "pm.collectionVariables.set(\"incidentId\", json.id);pm.collectionVariables.set(\"incidentVersion\", json.version);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ],
+              "raw": "{{baseUrl}}/api/incidents"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{responderToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Payment gateway latency\",\"description\":\"p99 above 2s\",\"severity\":\"SEV2\",\"serviceId\":{{serviceId}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Viewer cannot create an incident -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ],
+              "raw": "{{baseUrl}}/api/incidents"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"x\",\"severity\":\"SEV3\",\"serviceId\":{{serviceId}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Incident for unknown service -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", () => pm.response.to.have.status(404));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ],
+              "raw": "{{baseUrl}}/api/incidents"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{responderToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"x\",\"severity\":\"SEV3\",\"serviceId\":999999999}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Invalid severity value -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ],
+              "raw": "{{baseUrl}}/api/incidents"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{responderToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"x\",\"severity\":\"HIGH\",\"serviceId\":{{serviceId}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Empty body -> 400 with field errors",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));",
+                  "const errors = pm.response.json().errors;",
+                  "pm.test(\"Reports every missing required field\", () => {",
+                  "  pm.expect(errors).to.have.property(\"title\");",
+                  "  pm.expect(errors).to.have.property(\"severity\");",
+                  "  pm.expect(errors).to.have.property(\"serviceId\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ],
+              "raw": "{{baseUrl}}/api/incidents"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{responderToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get incident (first read, fills the cache)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Is the incident we created\", () => pm.expect(json.id).to.eql(Number(pm.collectionVariables.get(\"incidentId\"))));",
+                  "pm.collectionVariables.set(\"firstRead\", JSON.stringify(pm.response.json()));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get incident again (served from Redis)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Cached response is identical to the first read\", () =>",
+                  "  pm.expect(pm.response.json()).to.eql(JSON.parse(pm.collectionVariables.get(\"firstRead\"))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Confirm the cache itself with: docker exec incidentflow-redis-1 redis-cli --scan  (look for incidentflow:v1:incidents::<id>)."
+          }
+        },
+        {
+          "name": "Get unknown incident -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", () => pm.response.to.have.status(404));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "999999999"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/999999999"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List incidents (default paging)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Paged response shape\", () => {",
+                  "  pm.expect(json.content).to.be.an(\"array\");",
+                  "  pm.expect(json.page).to.have.property(\"totalElements\");",
+                  "  pm.expect(json.page.totalElements).to.be.at.least(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ],
+              "raw": "{{baseUrl}}/api/incidents"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter by status and service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const content = pm.response.json().content;",
+                  "const sid = Number(pm.collectionVariables.get(\"serviceId\"));",
+                  "pm.test(\"Every result matches both filters\", () =>",
+                  "  content.forEach(i => { pm.expect(i.status).to.eql(\"OPEN\"); pm.expect(i.serviceId).to.eql(sid); }));",
+                  "pm.test(\"Contains our incident\", () =>",
+                  "  pm.expect(content.map(i => i.id)).to.include(Number(pm.collectionVariables.get(\"incidentId\"))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "OPEN"
+                },
+                {
+                  "key": "serviceId",
+                  "value": "{{serviceId}}"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ],
+              "raw": "{{baseUrl}}/api/incidents?status=OPEN&serviceId={{serviceId}}&page=0&size=10"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Page size is capped at 100",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Requested 500, got at most 100\", () => pm.expect(pm.response.json().page.size).to.be.at.most(100));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "500"
+                }
+              ],
+              "raw": "{{baseUrl}}/api/incidents?size=500"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unknown sort property -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));pm.test(\"Detail mentions \\\"Unknown sort property\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"Unknown sort property\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "sort",
+                  "value": "nope,asc"
+                }
+              ],
+              "raw": "{{baseUrl}}/api/incidents?sort=nope,asc"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Invalid status filter -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "BAD"
+                }
+              ],
+              "raw": "{{baseUrl}}/api/incidents?status=BAD"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Incident lifecycle (state machine, optimistic lock, audit)",
+      "item": [
+        {
+          "name": "Viewer cannot change status -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}",
+                "status"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}/status"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"ACKNOWLEDGED\",\"version\":{{incidentVersion}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Stale version -> 409 (optimistic lock check)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", () => pm.response.to.have.status(409));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));pm.test(\"Detail mentions \\\"modified\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"modified\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}",
+                "status"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}/status"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{responderToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"ACKNOWLEDGED\",\"version\":999}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Invalid jump OPEN -> RESOLVED -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", () => pm.response.to.have.status(409));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));pm.test(\"Detail mentions \\\"Cannot move incident\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"Cannot move incident\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}",
+                "status"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}/status"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{responderToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"RESOLVED\",\"version\":{{incidentVersion}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Acknowledge the incident",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "const before = Number(pm.collectionVariables.get(\"incidentVersion\"));",
+                  "pm.test(\"Moved to ACKNOWLEDGED\", () => pm.expect(json.status).to.eql(\"ACKNOWLEDGED\"));",
+                  "pm.test(\"Version incremented by exactly one\", () => pm.expect(json.version).to.eql(before + 1));",
+                  "pm.test(\"acknowledgedAt is set\", () => pm.expect(json.acknowledgedAt).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"incidentVersion\", json.version);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}",
+                "status"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}/status"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{responderToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"ACKNOWLEDGED\",\"version\":{{incidentVersion}},\"note\":\"Looking into it\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Read after change shows fresh data (cache evicted)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Not served from a stale cache entry\", () => pm.expect(pm.response.json().status).to.eql(\"ACKNOWLEDGED\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Acknowledge again -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", () => pm.response.to.have.status(409));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));pm.test(\"Detail mentions \\\"Cannot move incident\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"Cannot move incident\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}",
+                "status"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}/status"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{responderToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"ACKNOWLEDGED\",\"version\":{{incidentVersion}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Resolve the incident",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Moved to RESOLVED\", () => pm.expect(json.status).to.eql(\"RESOLVED\"));",
+                  "pm.test(\"resolvedAt is set\", () => pm.expect(json.resolvedAt).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"incidentVersion\", json.version);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}",
+                "status"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}/status"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{responderToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"RESOLVED\",\"version\":{{incidentVersion}},\"note\":\"Rolled back the release\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reopen a resolved incident -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", () => pm.response.to.have.status(409));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));pm.test(\"Detail mentions \\\"Cannot move incident\\\"\", () => pm.expect(pm.response.json().detail).to.include(\"Cannot move incident\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}",
+                "status"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}/status"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{responderToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"OPEN\",\"version\":{{incidentVersion}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Audit history has all three transitions in order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const history = pm.response.json();",
+                  "pm.test(\"Three entries, oldest first\", () =>",
+                  "  pm.expect(history.map(h => h.toStatus)).to.eql([\"OPEN\", \"ACKNOWLEDGED\", \"RESOLVED\"]));",
+                  "pm.test(\"First entry has no previous status\", () => pm.expect(history[0].fromStatus).to.be.null);",
+                  "pm.test(\"Notes were recorded\", () => {",
+                  "  pm.expect(history[1].note).to.eql(\"Looking into it\");",
+                  "  pm.expect(history[2].note).to.eql(\"Rolled back the release\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "incidents",
+                "{{incidentId}}",
+                "history"
+              ],
+              "raw": "{{baseUrl}}/api/incidents/{{incidentId}}/history"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Events (outbox -> Kafka -> notification-service)",
+      "item": [
+        {
+          "name": "Notifications exist for every change (Kafka -> consumer -> DB)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Give the outbox relay (1s poll), Kafka and the consumer time to finish.",
+                  "setTimeout(function () {}, 5000);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const id = Number(pm.collectionVariables.get(\"incidentId\"));",
+                  "const mine = pm.response.json().filter(n => n.incidentId === id).sort((a, b) => a.id - b.id);",
+                  "pm.test(\"Exactly three notifications for this incident (no duplicates)\", () => pm.expect(mine).to.have.lengthOf(3));",
+                  "pm.test(\"Event types arrived in order\", () =>",
+                  "  pm.expect(mine.map(n => n.eventType)).to.eql([\"INCIDENT_CREATED\", \"INCIDENT_STATUS_CHANGED\", \"INCIDENT_STATUS_CHANGED\"]));",
+                  "pm.test(\"Messages are human readable\", () => {",
+                  "  pm.expect(mine[0].message).to.include(\"New SEV2 incident\");",
+                  "  pm.expect(mine[1].message).to.include(\"OPEN -> ACKNOWLEDGED\");",
+                  "  pm.expect(mine[2].message).to.include(\"ACKNOWLEDGED -> RESOLVED\");",
+                  "});",
+                  "pm.test(\"Service name carried through the event\", () =>",
+                  "  mine.forEach(n => pm.expect(n.serviceName).to.eql(pm.collectionVariables.get(\"serviceName\"))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{notifyUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ],
+              "raw": "{{notifyUrl}}/api/notifications"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Requires notification-service on port 8081. If this fails, wait a few seconds and re-send: the pipeline is asynchronous."
+          }
+        },
+        {
+          "name": "Notifications without token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", () => pm.response.to.have.status(401));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{notifyUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ],
+              "raw": "{{notifyUrl}}/api/notifications"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Notifications with garbage token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 401\", () => pm.response.to.have.status(401));pm.test(\"Error body is application/problem+json\", () => pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": [
+                "{{notifyUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ],
+              "raw": "{{notifyUrl}}/api/notifications"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "abc.def.ghi",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Needs **notification-service** running on port 8081.\n\n**Watch the live stream** (Postman cannot show an SSE stream well, so use curl):\n\n```\ncurl -N localhost:8081/api/notifications/stream -H \"Authorization: Bearer <token>\"\n```\n\n**Replay missed notifications:** add `-H \"Last-Event-ID: 2\"`.\n\n**Test duplicates and poison messages by publishing to Kafka directly** (key and JSON separated by `:`):\n\n```\ndocker exec -i incidentflow-kafka-1 /opt/kafka/bin/kafka-console-producer.sh \\\n  --bootstrap-server localhost:9092 --topic incident-events \\\n  --property parse.key=true --property key.separator=:\n```\n\nThen type, for example:\n\n```\n9001:{\"eventId\":\"11111111-1111-1111-1111-111111111111\",\"eventType\":\"INCIDENT_CREATED\",\"incidentId\":9001,\"serviceName\":\"manual-test\",\"title\":\"Manual\",\"severity\":\"SEV3\",\"status\":\"OPEN\",\"occurredAt\":\"2026-10-04T10:00:00Z\"}\n9001:{\"eventId\":\"11111111-1111-1111-1111-111111111111\",\"eventType\":\"INCIDENT_CREATED\",\"incidentId\":9001,\"serviceName\":\"manual-test\",\"title\":\"Manual\",\"severity\":\"SEV3\",\"status\":\"OPEN\",\"occurredAt\":\"2026-10-04T10:00:00Z\"}\n9001:this is not json\n```\n\nSending the same event twice must produce **one** notification. The last line must land in the dead-letter topic:\n\n```\ndocker exec incidentflow-kafka-1 /opt/kafka/bin/kafka-console-consumer.sh \\\n  --bootstrap-server localhost:9092 --topic incident-events.DLT --from-beginning\n```\n"
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "notifyUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "adminUsername",
+      "value": "admin"
+    },
+    {
+      "key": "adminPassword",
+      "value": "ChangeMe123!"
+    }
+  ]
+}
