@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  incident-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: incident-service/pom.xml
+      # Runs unit tests and the Testcontainers integration tests (Docker is available on the runner).
+      - run: ./mvnw -B verify
+        working-directory: incident-service
+
+  notification-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: notification-service/pom.xml
+      - run: ./mvnw -B verify
+        working-directory: notification-service
+
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci
+        working-directory: dashboard
+      - run: npm run lint
+        working-directory: dashboard
+      - run: npm run build
+        working-directory: dashboard
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # docker-compose.yaml refuses to parse without these variables, so use the example values.
+      - run: cp .env.example .env
+      - run: docker compose build

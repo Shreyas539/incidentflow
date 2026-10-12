@@ -88,5 +88,13 @@ services:
       kafka:
         condition: service_healthy
 
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "3000:80"
+    depends_on:
+      - incident-service
+      - notification-service
+
 volumes:
   pgdata:
