@@ -2,6 +2,10 @@
 
 [![CI](https://github.com/Shreyas539/incidentflow/actions/workflows/ci.yml/badge.svg)](https://github.com/Shreyas539/incidentflow/actions/workflows/ci.yml)
 
+## 🚀 Live Demo
+
+![IncidentFlow Live Demo](assets/demo.gif)
+
 An incident management platform built to practice the parts of backend engineering that go wrong in production: concurrent updates, lost events, duplicate messages, cache invalidation and failure handling.
 
 Teams register the services they run. When something breaks, a responder logs an incident, acknowledges it and resolves it. Everyone watching the dashboard sees changes live, without refreshing.
