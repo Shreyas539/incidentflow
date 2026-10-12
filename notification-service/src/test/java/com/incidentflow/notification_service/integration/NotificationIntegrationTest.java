@@ -72,5 +72,5 @@ class NotificationIntegrationTest extends AbstractIntegrationTest {
         assertThat(countFor(original)).isEqualTo(1);
     }
 
-    
+
 }
